@@ -54,5 +54,36 @@ public enum MessageType {
     ACTOR_SYSTEM_MESSAGE,
     
     // Connection management
-    CONNECTION_BOUND
+    CONNECTION_BOUND,
+    
+    // Server information and discovery
+    DISCO_INFO_REQUEST,
+    DISCO_INFO_RESPONSE,
+    DISCO_ITEMS_REQUEST,
+    DISCO_ITEMS_RESPONSE,
+    SERVER_INFO_REQUEST,
+    SERVER_INFO_RESPONSE,
+    FEATURE_QUERY,
+    FEATURE_QUERY_RESPONSE,
+    
+    // Connection monitoring
+    CONNECTION_HEALTH_CHECK,
+    CONNECTION_TIMEOUT,
+    CONNECTION_METRICS_REQUEST,
+    CONNECTION_METRICS_RESPONSE,
+    CONNECTION_CLEANUP,
+    
+    // Configuration
+    CONFIG_UPDATE,
+    CONFIG_RELOAD,
+    CONFIG_VALIDATION,
+    
+    // Metrics and monitoring
+    METRICS_COLLECTION,
+    HEALTH_STATUS_REQUEST,
+    HEALTH_STATUS_RESPONSE,
+    PERFORMANCE_METRICS,
+    
+    // Error responses
+    ERROR_RESPONSE
 }
