@@ -1,16 +1,19 @@
 package io.github.koosty;
 
+import io.github.koosty.xmpp.config.XmppSecurityProperties;
 import io.github.koosty.xmpp.server.XmppTcpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Component;
 
 @SpringBootApplication
+@EnableConfigurationProperties(XmppSecurityProperties.class)
 public class ReactiveInstantMessagingApplication {
 	
 	private static final Logger logger = LoggerFactory.getLogger(ReactiveInstantMessagingApplication.class);

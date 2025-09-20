@@ -1,7 +1,7 @@
 server:
   port: 8080
 
-# XMPP Server Configuration
+# XMPP Server Configuration - TLS Disabled Example
 xmpp:
   server:
     port: 5222
@@ -9,32 +9,26 @@ xmpp:
     timeout-minutes: 30
     max-connections: 10000
   
-  # Security settings
+  # Security settings - TLS DISABLED
   security:
     tls:
-      # Enable TLS support (default: true)
-      enabled: true
+      # Disable TLS support completely
+      enabled: false
       
-      # Require TLS for all connections (default: true)
-      # If false, TLS is optional and clients can connect without encryption
-      required: true
+      # Since TLS is disabled, this is irrelevant but kept for configuration completeness
+      required: false
       
-      # Keystore configuration
+      # TLS configuration (ignored when disabled)
       keystore-path: classpath:keystore.jks
       keystore-password: changeit
       keystore-type: JKS
-      
-      # TLS protocol versions to support
       supported-protocols:
         - TLSv1.2
         - TLSv1.3
-      
-      # TLS cipher suites (empty = use JVM defaults)
       supported-cipher-suites: []
+      client-auth: none
       
-      # Client certificate verification
-      client-auth: none  # Options: none, want, need
-      
+    # SASL mechanisms (will be offered immediately without TLS)
     sasl:
       mechanisms:
         - PLAIN

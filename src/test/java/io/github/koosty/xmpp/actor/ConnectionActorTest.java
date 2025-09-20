@@ -1,6 +1,7 @@
 package io.github.koosty.xmpp.actor;
 
 import io.github.koosty.xmpp.actor.message.IncomingXmlMessage;
+import io.github.koosty.xmpp.config.XmppSecurityProperties;
 import io.github.koosty.xmpp.stream.XmlStreamProcessor;
 import io.github.koosty.xmpp.features.StreamFeaturesManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +24,10 @@ class ConnectionActorTest {
     @BeforeEach
     void setUp() {
         xmlProcessor = new XmlStreamProcessor();
-        featuresManager = new StreamFeaturesManager();
+        
+        // Create mock security properties for testing
+        XmppSecurityProperties securityProperties = new XmppSecurityProperties();
+        featuresManager = new StreamFeaturesManager(securityProperties);
         lastOutboundMessage = new AtomicReference<>();
         
         // Mock ActorSystem for testing
@@ -31,7 +35,7 @@ class ConnectionActorTest {
         
         actor = new ConnectionActor("test-conn", xmlProcessor, message -> {
             lastOutboundMessage.set(message.xmlData());
-        }, featuresManager, mockActorSystem);
+        }, featuresManager, mockActorSystem, securityProperties);
     }
     
     @Test
@@ -62,7 +66,7 @@ class ConnectionActorTest {
         
         // Should have received stream response
         assertNotNull(lastOutboundMessage.get());
-        assertTrue(lastOutboundMessage.get().contains("stream:stream"));
+        assertTrue(lastOutboundMessage.get().contains("stream:features"));
         
         actor.stop();
     }

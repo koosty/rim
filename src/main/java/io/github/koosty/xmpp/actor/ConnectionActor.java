@@ -1,6 +1,7 @@
 package io.github.koosty.xmpp.actor;
 
 import io.github.koosty.xmpp.actor.message.*;
+import io.github.koosty.xmpp.config.XmppSecurityProperties;
 import io.github.koosty.xmpp.stream.XmlStreamProcessor;
 import io.github.koosty.xmpp.features.StreamFeaturesManager;
 import reactor.netty.NettyOutbound;
@@ -27,6 +28,7 @@ public class ConnectionActor {
     private final Consumer<OutgoingStanzaMessage> outboundSender;
     private final StreamFeaturesManager featuresManager;
     private final ActorSystem actorSystem;
+    private final XmppSecurityProperties securityProperties;
     private volatile Thread processingThread;
     private volatile boolean running = true;
     
@@ -46,12 +48,14 @@ public class ConnectionActor {
     public ConnectionActor(String connectionId, XmlStreamProcessor xmlProcessor, 
                           Consumer<OutgoingStanzaMessage> outboundSender, 
                           StreamFeaturesManager featuresManager,
-                          ActorSystem actorSystem) {
+                          ActorSystem actorSystem,
+                          XmppSecurityProperties securityProperties) {
         this.connectionId = connectionId;
         this.xmlProcessor = xmlProcessor;
         this.outboundSender = outboundSender;
         this.featuresManager = featuresManager;
         this.actorSystem = actorSystem;
+        this.securityProperties = securityProperties;
     }
     
     /**
@@ -159,6 +163,13 @@ public class ConnectionActor {
         try {
             // Route messages based on connection state and XML content
             if (xmlData.contains("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'")) {
+                // Check if TLS is enabled before processing
+                if (!securityProperties.getTls().isEnabled()) {
+                    logger.warn("STARTTLS requested but TLS is disabled for connection {}", connectionId);
+                    sendTlsNotSupported();
+                    return;
+                }
+                
                 // Route to TLS actor
                 if (tlsActor == null) {
                     initializeTlsActor();
@@ -351,5 +362,21 @@ public class ConnectionActor {
             connectionId, features, java.time.Instant.now()
         );
         outboundSender.accept(featuresMessage);
+    }
+
+    /**
+     * Send TLS not supported error to client
+     */
+    private void sendTlsNotSupported() {
+        String errorMessage = "<failure xmlns='urn:ietf:params:xml:ns:xmpp-tls'>" +
+                              "<policy-violation/>" +
+                              "</failure>";
+        
+        OutgoingStanzaMessage outgoingMessage = new OutgoingStanzaMessage(
+            connectionId, errorMessage, java.time.Instant.now()
+        );
+        outboundSender.accept(outgoingMessage);
+        
+        logger.info("Sent TLS not supported error to connection {}", connectionId);
     }
 }

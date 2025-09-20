@@ -2,6 +2,7 @@ package io.github.koosty.xmpp.actor;
 
 import io.github.koosty.xmpp.actor.message.ActorMessage;
 import io.github.koosty.xmpp.actor.message.OutgoingStanzaMessage;
+import io.github.koosty.xmpp.config.XmppSecurityProperties;
 import io.github.koosty.xmpp.stream.XmlStreamProcessor;
 import io.github.koosty.xmpp.features.StreamFeaturesManager;
 import org.slf4j.Logger;
@@ -26,10 +27,13 @@ public class ActorSystem {
     private final ConcurrentMap<String, NettyOutbound> outboundConnections = new ConcurrentHashMap<>();
     private final XmlStreamProcessor xmlProcessor;
     private final StreamFeaturesManager featuresManager;
+    private final XmppSecurityProperties securityProperties;
     
-    public ActorSystem(XmlStreamProcessor xmlProcessor, StreamFeaturesManager featuresManager) {
+    public ActorSystem(XmlStreamProcessor xmlProcessor, StreamFeaturesManager featuresManager,
+                      XmppSecurityProperties securityProperties) {
         this.xmlProcessor = xmlProcessor;
         this.featuresManager = featuresManager;
+        this.securityProperties = securityProperties;
         logger.info("ActorSystem initialized");
     }
     
@@ -59,7 +63,8 @@ public class ActorSystem {
         };
         
         // Create and start the actor
-        ConnectionActor actor = new ConnectionActor(connectionId, xmlProcessor, outboundSender, featuresManager, this);
+        ConnectionActor actor = new ConnectionActor(connectionId, xmlProcessor, outboundSender, 
+                                                   featuresManager, this, securityProperties);
         connectionActors.put(connectionId, actor);
         
         // Set the NettyOutbound for the actor (used by TLS and SASL actors)

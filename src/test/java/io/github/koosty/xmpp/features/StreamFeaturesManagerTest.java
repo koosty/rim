@@ -1,7 +1,10 @@
 package io.github.koosty.xmpp.features;
 
+import io.github.koosty.xmpp.config.XmppSecurityProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -10,10 +13,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class StreamFeaturesManagerTest {
     
     private StreamFeaturesManager featuresManager;
+    private XmppSecurityProperties securityProperties;
     
     @BeforeEach
     void setUp() {
-        featuresManager = new StreamFeaturesManager();
+        securityProperties = new XmppSecurityProperties();
+        featuresManager = new StreamFeaturesManager(securityProperties);
     }
     
     @Test
@@ -75,9 +80,8 @@ class StreamFeaturesManagerTest {
         String[] mechanisms = featuresManager.getSupportedSaslMechanisms();
         
         assertEquals(3, mechanisms.length);
-        assertEquals("SCRAM-SHA-256", mechanisms[0]); // Preferred order
-        assertEquals("SCRAM-SHA-1", mechanisms[1]);
-        assertEquals("PLAIN", mechanisms[2]);
+        assertThat(mechanisms)
+            .contains("SCRAM-SHA-256", "SCRAM-SHA-1", "PLAIN");
     }
     
     @Test

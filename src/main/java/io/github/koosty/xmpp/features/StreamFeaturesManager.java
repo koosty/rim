@@ -1,5 +1,6 @@
 package io.github.koosty.xmpp.features;
 
+import io.github.koosty.xmpp.config.XmppSecurityProperties;
 import org.springframework.stereotype.Component;
 
 /**
@@ -9,16 +10,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class StreamFeaturesManager {
 
-    private static final String STARTTLS_FEATURE = 
-        "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'><required/></starttls>";
-    
-    private static final String SASL_MECHANISMS = 
-        "<mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>" +
-        "<mechanism>SCRAM-SHA-256</mechanism>" +
-        "<mechanism>SCRAM-SHA-1</mechanism>" +
-        "<mechanism>PLAIN</mechanism>" +
-        "</mechanisms>";
-    
+    private final XmppSecurityProperties securityProperties;
+
+    public StreamFeaturesManager(XmppSecurityProperties securityProperties) {
+        this.securityProperties = securityProperties;
+    }
+
     private static final String BIND_FEATURE = 
         "<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/>";
     
@@ -27,10 +24,18 @@ public class StreamFeaturesManager {
 
     /**
      * Generates stream features for initial connection (before TLS).
-     * Only STARTTLS is offered as it's mandatory.
+     * STARTTLS is offered if TLS is enabled.
      */
     public String generateInitialFeatures() {
-        return wrapFeatures(STARTTLS_FEATURE);
+        if (securityProperties.getTls().isEnabled()) {
+            String starttlsFeature = securityProperties.getTls().isRequired() ?
+                "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'><required/></starttls>" :
+                "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>";
+            return wrapFeatures(starttlsFeature);
+        } else {
+            // If TLS is disabled, offer SASL mechanisms directly
+            return generateSaslFeatures();
+        }
     }
 
     /**
@@ -38,7 +43,26 @@ public class StreamFeaturesManager {
      * SASL authentication mechanisms are offered.
      */
     public String generatePostTlsFeatures() {
-        return wrapFeatures(SASL_MECHANISMS);
+        return generateSaslFeatures();
+    }
+
+    /**
+     * Generates SASL mechanism features based on configuration.
+     */
+    private String generateSaslFeatures() {
+        String[] mechanisms = securityProperties.getSasl().getMechanisms();
+        if (mechanisms.length == 0) {
+            return wrapFeatures("");
+        }
+
+        StringBuilder saslBuilder = new StringBuilder();
+        saslBuilder.append("<mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>");
+        for (String mechanism : mechanisms) {
+            saslBuilder.append("<mechanism>").append(mechanism).append("</mechanism>");
+        }
+        saslBuilder.append("</mechanisms>");
+
+        return wrapFeatures(saslBuilder.toString());
     }
 
     /**
@@ -60,21 +84,21 @@ public class StreamFeaturesManager {
      * Checks if TLS is supported by this server.
      */
     public boolean isTlsSupported() {
-        return true;
+        return securityProperties.getTls().isEnabled();
     }
 
     /**
      * Checks if TLS is mandatory for this server.
      */
     public boolean isTlsMandatory() {
-        return true;
+        return securityProperties.getTls().isEnabled() && securityProperties.getTls().isRequired();
     }
 
     /**
      * Gets supported SASL mechanisms in preference order.
      */
     public String[] getSupportedSaslMechanisms() {
-        return new String[]{"SCRAM-SHA-256", "SCRAM-SHA-1", "PLAIN"};
+        return securityProperties.getSasl().getMechanisms();
     }
 
     /**
