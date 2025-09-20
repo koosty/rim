@@ -26,6 +26,7 @@ public class ConnectionActor {
     private final XmlStreamProcessor xmlProcessor;
     private final Consumer<OutgoingStanzaMessage> outboundSender;
     private final StreamFeaturesManager featuresManager;
+    private final ActorSystem actorSystem;
     private volatile Thread processingThread;
     private volatile boolean running = true;
     
@@ -44,11 +45,13 @@ public class ConnectionActor {
     
     public ConnectionActor(String connectionId, XmlStreamProcessor xmlProcessor, 
                           Consumer<OutgoingStanzaMessage> outboundSender, 
-                          StreamFeaturesManager featuresManager) {
+                          StreamFeaturesManager featuresManager,
+                          ActorSystem actorSystem) {
         this.connectionId = connectionId;
         this.xmlProcessor = xmlProcessor;
         this.outboundSender = outboundSender;
         this.featuresManager = featuresManager;
+        this.actorSystem = actorSystem;
     }
     
     /**
@@ -291,7 +294,7 @@ public class ConnectionActor {
      */
     private void initializeTlsActor() {
         if (tlsActor == null && nettyOutbound != null) {
-            tlsActor = new TlsNegotiationActor(connectionId, null); // ActorSystem will be passed
+            tlsActor = new TlsNegotiationActor(connectionId, actorSystem);
             tlsActor.start(nettyOutbound);
             logger.debug("TLS actor initialized for connection {}", connectionId);
         }
@@ -302,7 +305,7 @@ public class ConnectionActor {
      */
     private void initializeSaslActor() {
         if (saslActor == null && nettyOutbound != null) {
-            saslActor = new SaslAuthenticationActor(connectionId, null); // ActorSystem will be passed
+            saslActor = new SaslAuthenticationActor(connectionId, actorSystem);
             saslActor.start(nettyOutbound);
             logger.debug("SASL actor initialized for connection {}", connectionId);
         }

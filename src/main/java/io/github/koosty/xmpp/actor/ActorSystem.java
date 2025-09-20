@@ -59,7 +59,7 @@ public class ActorSystem {
         };
         
         // Create and start the actor
-        ConnectionActor actor = new ConnectionActor(connectionId, xmlProcessor, outboundSender, featuresManager);
+        ConnectionActor actor = new ConnectionActor(connectionId, xmlProcessor, outboundSender, featuresManager, this);
         connectionActors.put(connectionId, actor);
         
         // Set the NettyOutbound for the actor (used by TLS and SASL actors)

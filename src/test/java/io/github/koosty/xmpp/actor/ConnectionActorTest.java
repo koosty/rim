@@ -5,7 +5,6 @@ import io.github.koosty.xmpp.stream.XmlStreamProcessor;
 import io.github.koosty.xmpp.features.StreamFeaturesManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -27,9 +26,12 @@ class ConnectionActorTest {
         featuresManager = new StreamFeaturesManager();
         lastOutboundMessage = new AtomicReference<>();
         
+        // Mock ActorSystem for testing
+        ActorSystem mockActorSystem = null; // In tests, we can use null for now
+        
         actor = new ConnectionActor("test-conn", xmlProcessor, message -> {
             lastOutboundMessage.set(message.xmlData());
-        }, featuresManager);
+        }, featuresManager, mockActorSystem);
     }
     
     @Test
