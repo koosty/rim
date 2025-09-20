@@ -199,7 +199,11 @@ public class ConnectionActor {
         serverDomain = "localhost"; // TODO: Get from configuration
         
         xmlProcessor.generateStreamHeader(serverDomain, null, streamId)
-            .doOnNext(header -> outboundSender.accept(OutgoingStanzaMessage.of(connectionId, header)))
+            .doOnNext(header -> {
+                outboundSender.accept(OutgoingStanzaMessage.of(connectionId, header));
+                // Immediately send stream features after the stream header
+                sendStreamFeatures();
+            })
             .subscribe();
             
         state.set(ConnectionState.STREAM_INITIATED);

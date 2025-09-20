@@ -11,7 +11,6 @@ import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /**
@@ -38,28 +37,25 @@ public class XmlStreamProcessor {
      */
     public Mono<String> generateStreamHeader(String from, String to, String id) {
         return Mono.fromCallable(() -> {
-            StringWriter writer = new StringWriter();
-            XMLStreamWriter xmlWriter = outputFactory.createXMLStreamWriter(writer);
-            
-            xmlWriter.writeStartElement("stream", "stream", "http://etherx.jabber.org/streams");
-            xmlWriter.writeNamespace("stream", "http://etherx.jabber.org/streams");
-            xmlWriter.writeDefaultNamespace("jabber:client");
+            StringBuilder header = new StringBuilder();
+            header.append("<stream:stream");
+            header.append(" xmlns:stream=\"http://etherx.jabber.org/streams\"");
+            header.append(" xmlns=\"jabber:client\"");
             
             if (from != null) {
-                xmlWriter.writeAttribute("from", from);
+                header.append(" from=\"").append(from).append("\"");
             }
             if (to != null) {
-                xmlWriter.writeAttribute("to", to);
+                header.append(" to=\"").append(to).append("\"");
             }
             if (id != null) {
-                xmlWriter.writeAttribute("id", id);
+                header.append(" id=\"").append(id).append("\"");
             }
             
-            xmlWriter.writeAttribute("version", "1.0");
-            xmlWriter.writeAttribute("xml:lang", "en");
+            header.append(" version=\"1.0\"");
+            header.append(" xml:lang=\"en\">");
             
-            xmlWriter.flush();
-            return writer.toString();
+            return header.toString();
         });
     }
     
