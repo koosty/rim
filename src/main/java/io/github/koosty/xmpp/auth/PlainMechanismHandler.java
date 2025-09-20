@@ -30,10 +30,12 @@ public class PlainMechanismHandler implements SaslMechanismHandler {
     }
     
     private String processAuthData(String authData) throws Exception {
+        logger.debug("Processing auth data: {}", authData);
         try {
             // Decode base64 auth data
             byte[] decodedData = Base64.getDecoder().decode(authData);
             String authString = new String(decodedData);
+            logger.debug("Decoded auth string: {}", authString);
             
             // Parse PLAIN format: [authzid]\0authcid\0passwd
             String[] parts = authString.split("\0");

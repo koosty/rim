@@ -263,15 +263,10 @@ public class SaslAuthenticationActor {
         
         if (start > 0 && end > start) {
             String content = xml.substring(start + 1, end).trim();
-            if (!content.isEmpty()) {
-                try {
-                    return new String(Base64.getDecoder().decode(content));
-                } catch (IllegalArgumentException e) {
-                    return content;
-                }
-            }
+            // Return the raw content - let the SASL mechanism handler decide if it needs decoding
+            return content.isEmpty() ? null : content;
         }
-        return "";
+        return null;
     }
     
     public SaslState getCurrentState() {
