@@ -29,7 +29,14 @@ public enum MessageType {
     
     // Resource management
     RESOURCE_BINDING,
+    RESOURCE_BINDING_REQUEST,
+    RESOURCE_BINDING_SUCCESS,
+    RESOURCE_BINDING_FAILURE,
+    
+    // Session management
     SESSION_CREATED,
+    SESSION_BOUND,
+    SESSION_TERMINATED,
     
     // Message routing
     ROUTE_STANZA,
