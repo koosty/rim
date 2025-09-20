@@ -40,12 +40,18 @@ public enum MessageType {
     
     // Message routing
     ROUTE_STANZA,
+    ROUTE_MESSAGE,
+    ROUTE_MESSAGE_RESPONSE,
+    REGISTER_CONNECTION,
+    UNREGISTER_CONNECTION,
+    GET_CONNECTION_COUNT,
     PRESENCE_UPDATE,
     
     // Actor system
     ACTOR_START,
     ACTOR_STOP,
     ACTOR_SUPERVISION,
+    ACTOR_SYSTEM_MESSAGE,
     
     // Connection management
     CONNECTION_BOUND

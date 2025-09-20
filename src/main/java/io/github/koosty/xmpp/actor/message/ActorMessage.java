@@ -29,8 +29,11 @@ public sealed interface ActorMessage permits
     ConnectionBoundMessage,
     ConnectionClosedMessage,
     RouteStanzaMessage,
+    RouteMessageRequest,
+    RouteMessageResponse,
     StreamInitiationMessage,
-    ActorSystemMessage {
+    ActorSystemMessage,
+    GenericActorMessage {
     
     MessageType getType();
     String getSender();
