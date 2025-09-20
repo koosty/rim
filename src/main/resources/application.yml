@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+# XMPP Server Configuration
+xmpp:
+  server:
+    port: 5222
+    domain: localhost
+    timeout-minutes: 30
+    max-connections: 10000
+  
+  # Security settings
+  security:
+    tls:
+      enabled: true
+      required: true
+      keystore-path: classpath:keystore.jks
+      keystore-password: changeit
+    sasl:
+      mechanisms:
+        - PLAIN
+        - SCRAM-SHA-1
+        - SCRAM-SHA-256
+
+# Database Configuration
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/xmpp
+    username: xmpp_user
+    password: xmpp_pass
+    pool:
+      initial-size: 10
+      max-size: 50
+
+# Logging Configuration
+logging:
+  level:
+    io.github.koosty.xmpp: DEBUG
+    reactor.netty: INFO
+    io.r2dbc.postgresql: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
