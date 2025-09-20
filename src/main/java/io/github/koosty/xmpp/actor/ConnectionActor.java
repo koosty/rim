@@ -44,6 +44,7 @@ public class ConnectionActor {
     private boolean tlsEstablished = false;
     private boolean authenticated = false;
     private String authenticatedJid;
+    private boolean awaitingPostSaslStream = false;
     
     public ConnectionActor(String connectionId, XmlStreamProcessor xmlProcessor, 
                           Consumer<OutgoingStanzaMessage> outboundSender, 
@@ -238,12 +239,23 @@ public class ConnectionActor {
     private void sendStreamFeatures() {
         String features;
         
+        logger.debug("sendStreamFeatures() - tlsEstablished: {}, authenticated: {}, awaitingPostSaslStream: {}", 
+                    tlsEstablished, authenticated, awaitingPostSaslStream);
+        
         if (!tlsEstablished) {
+            logger.debug("Generating initial features (pre-TLS)");
             features = featuresManager.generateInitialFeatures();
-        } else if (!authenticated) {
+        } else if (!authenticated && !awaitingPostSaslStream) {
+            logger.debug("Generating post-TLS features (SASL)");
             features = featuresManager.generatePostTlsFeatures();
         } else {
+            logger.debug("Generating post-SASL features (bind/session)");
             features = featuresManager.generatePostSaslFeatures();
+            // Clear the flag after sending post-SASL features
+            if (awaitingPostSaslStream) {
+                awaitingPostSaslStream = false;
+                logger.debug("Cleared awaitingPostSaslStream flag for connection {}", connectionId);
+            }
         }
         
         logger.debug("Sending stream features to connection {}: {}", connectionId, features);
@@ -343,6 +355,7 @@ public class ConnectionActor {
         authenticated = true;
         authenticatedJid = message.authenticatedJid();
         clientJid = message.authenticatedJid();
+        awaitingPostSaslStream = true; // Flag that we're expecting a stream restart
         state.set(ConnectionState.AUTHENTICATED);
         
         // Send new stream features after SASL
