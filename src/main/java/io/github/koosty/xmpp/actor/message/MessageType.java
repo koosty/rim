@@ -18,7 +18,14 @@ public enum MessageType {
     
     // Security negotiation
     TLS_NEGOTIATION,
+    TLS_NEGOTIATION_REQUEST,
+    TLS_NEGOTIATION_SUCCESS,
+    TLS_NEGOTIATION_FAILURE,
     SASL_AUTH,
+    SASL_AUTH_REQUEST,
+    SASL_AUTH_RESPONSE,
+    SASL_AUTH_SUCCESS,
+    SASL_AUTH_FAILURE,
     
     // Resource management
     RESOURCE_BINDING,

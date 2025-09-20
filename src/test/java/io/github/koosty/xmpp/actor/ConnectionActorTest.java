@@ -2,8 +2,10 @@ package io.github.koosty.xmpp.actor;
 
 import io.github.koosty.xmpp.actor.message.IncomingXmlMessage;
 import io.github.koosty.xmpp.stream.XmlStreamProcessor;
+import io.github.koosty.xmpp.features.StreamFeaturesManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -16,16 +18,18 @@ class ConnectionActorTest {
     
     private ConnectionActor actor;
     private XmlStreamProcessor xmlProcessor;
+    private StreamFeaturesManager featuresManager;
     private AtomicReference<String> lastOutboundMessage;
     
     @BeforeEach
     void setUp() {
         xmlProcessor = new XmlStreamProcessor();
+        featuresManager = new StreamFeaturesManager();
         lastOutboundMessage = new AtomicReference<>();
         
         actor = new ConnectionActor("test-conn", xmlProcessor, message -> {
             lastOutboundMessage.set(message.xmlData());
-        });
+        }, featuresManager);
     }
     
     @Test

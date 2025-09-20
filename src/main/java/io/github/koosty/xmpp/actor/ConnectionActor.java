@@ -2,6 +2,8 @@ package io.github.koosty.xmpp.actor;
 
 import io.github.koosty.xmpp.actor.message.*;
 import io.github.koosty.xmpp.stream.XmlStreamProcessor;
+import io.github.koosty.xmpp.features.StreamFeaturesManager;
+import reactor.netty.NettyOutbound;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,8 +25,14 @@ public class ConnectionActor {
     private final AtomicReference<ConnectionState> state = new AtomicReference<>(ConnectionState.CONNECTED);
     private final XmlStreamProcessor xmlProcessor;
     private final Consumer<OutgoingStanzaMessage> outboundSender;
+    private final StreamFeaturesManager featuresManager;
     private volatile Thread processingThread;
     private volatile boolean running = true;
+    
+    // Phase 2: TLS and SASL actors
+    private volatile TlsNegotiationActor tlsActor;
+    private volatile SaslAuthenticationActor saslActor;
+    private volatile NettyOutbound nettyOutbound;
     
     // Connection-specific state
     private String streamId;
@@ -32,12 +40,15 @@ public class ConnectionActor {
     private String serverDomain;
     private boolean tlsEstablished = false;
     private boolean authenticated = false;
+    private String authenticatedJid;
     
     public ConnectionActor(String connectionId, XmlStreamProcessor xmlProcessor, 
-                          Consumer<OutgoingStanzaMessage> outboundSender) {
+                          Consumer<OutgoingStanzaMessage> outboundSender, 
+                          StreamFeaturesManager featuresManager) {
         this.connectionId = connectionId;
         this.xmlProcessor = xmlProcessor;
         this.outboundSender = outboundSender;
+        this.featuresManager = featuresManager;
     }
     
     /**
@@ -115,7 +126,11 @@ public class ConnectionActor {
             case INCOMING_XML -> processIncomingXml((IncomingXmlMessage) message);
             case STREAM_INITIATION -> handleStreamInitiation((StreamInitiationMessage) message);
             case TLS_NEGOTIATION -> handleTlsNegotiation((TlsNegotiationMessage) message);
+            case TLS_NEGOTIATION_SUCCESS -> handleTlsSuccess((TlsNegotiationSuccessMessage) message);
+            case TLS_NEGOTIATION_FAILURE -> handleTlsFailure((TlsNegotiationFailureMessage) message);
             case SASL_AUTH -> handleSaslAuth((SaslAuthMessage) message);
+            case SASL_AUTH_SUCCESS -> handleSaslSuccess((SaslAuthSuccessMessage) message);
+            case SASL_AUTH_FAILURE -> handleSaslFailure((SaslAuthFailureMessage) message);
             case RESOURCE_BINDING -> handleResourceBinding((ResourceBindingMessage) message);
             case CONNECTION_CLOSED -> handleConnectionClosed((ConnectionClosedMessage) message);
             default -> logger.warn("Unhandled message type {} for connection {}", message.getType(), connectionId);
@@ -139,6 +154,29 @@ public class ConnectionActor {
         
         // Parse XML stanza
         try {
+            // Route messages based on connection state and XML content
+            if (xmlData.contains("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'")) {
+                // Route to TLS actor
+                if (tlsActor == null) {
+                    initializeTlsActor();
+                }
+                if (tlsActor != null) {
+                    tlsActor.tell(new IncomingXmlMessage(connectionId, xmlData, message.timestamp()));
+                }
+                return;
+            }
+            
+            if (xmlData.contains("xmlns='urn:ietf:params:xml:ns:xmpp-sasl'")) {
+                // Route to SASL actor
+                if (saslActor == null) {
+                    initializeSaslActor();
+                }
+                if (saslActor != null) {
+                    saslActor.tell(new IncomingXmlMessage(connectionId, xmlData, message.timestamp()));
+                }
+                return;
+            }
+            
             if (state.get() == ConnectionState.STREAM_INITIATED) {
                 // Send initial stream features
                 sendStreamFeatures();
@@ -180,15 +218,18 @@ public class ConnectionActor {
     }
     
     private void sendStreamFeatures() {
-        boolean tlsRequired = !tlsEstablished;
-        boolean saslAvailable = tlsEstablished && !authenticated;
+        String features;
         
-        xmlProcessor.generateStreamFeatures(tlsRequired, saslAvailable)
-            .doOnNext(features -> {
-                logger.debug("Sending stream features to connection {}: {}", connectionId, features);
-                outboundSender.accept(OutgoingStanzaMessage.of(connectionId, features));
-            })
-            .subscribe();
+        if (!tlsEstablished) {
+            features = featuresManager.generateInitialFeatures();
+        } else if (!authenticated) {
+            features = featuresManager.generatePostTlsFeatures();
+        } else {
+            features = featuresManager.generatePostSaslFeatures();
+        }
+        
+        logger.debug("Sending stream features to connection {}: {}", connectionId, features);
+        outboundSender.accept(OutgoingStanzaMessage.of(connectionId, features));
     }
     
     private void sendStreamError(String condition, String text) {
@@ -230,4 +271,78 @@ public class ConnectionActor {
     public String getClientJid() { return clientJid; }
     public boolean isTlsEstablished() { return tlsEstablished; }
     public boolean isAuthenticated() { return authenticated; }
+    public String getAuthenticatedJid() { return authenticatedJid; }
+    
+    // Phase 2: TLS and SASL integration methods
+    
+    /**
+     * Set the NettyOutbound for this connection (used by TLS and SASL actors).
+     */
+    public void setNettyOutbound(NettyOutbound outbound) {
+        this.nettyOutbound = outbound;
+    }
+    
+    /**
+     * Initialize TLS actor for this connection.
+     */
+    private void initializeTlsActor() {
+        if (tlsActor == null && nettyOutbound != null) {
+            tlsActor = new TlsNegotiationActor(connectionId, null); // ActorSystem will be passed
+            tlsActor.start(nettyOutbound);
+            logger.debug("TLS actor initialized for connection {}", connectionId);
+        }
+    }
+    
+    /**
+     * Initialize SASL actor for this connection.
+     */
+    private void initializeSaslActor() {
+        if (saslActor == null && nettyOutbound != null) {
+            saslActor = new SaslAuthenticationActor(connectionId, null); // ActorSystem will be passed
+            saslActor.start(nettyOutbound);
+            logger.debug("SASL actor initialized for connection {}", connectionId);
+        }
+    }
+    
+    private void handleTlsSuccess(TlsNegotiationSuccessMessage message) {
+        logger.info("TLS negotiation successful for connection {}", connectionId);
+        tlsEstablished = true;
+        state.set(ConnectionState.TLS_ESTABLISHED);
+        
+        // Send new stream features after TLS
+        String features = featuresManager.generatePostTlsFeatures();
+        sendFeatures(features);
+    }
+    
+    private void handleTlsFailure(TlsNegotiationFailureMessage message) {
+        logger.error("TLS negotiation failed for connection {}: {}", connectionId, message.errorReason());
+        sendStreamError("policy-violation", "TLS required");
+        state.set(ConnectionState.CLOSING);
+    }
+    
+    private void handleSaslSuccess(SaslAuthSuccessMessage message) {
+        logger.info("SASL authentication successful for connection {}: {}", connectionId, message.authenticatedJid());
+        authenticated = true;
+        authenticatedJid = message.authenticatedJid();
+        clientJid = message.authenticatedJid();
+        state.set(ConnectionState.AUTHENTICATED);
+        
+        // Send new stream features after SASL
+        String features = featuresManager.generatePostSaslFeatures();
+        sendFeatures(features);
+    }
+    
+    private void handleSaslFailure(SaslAuthFailureMessage message) {
+        logger.warn("SASL authentication failed for connection {}: {} - {}", 
+                   connectionId, message.errorCondition(), message.errorText());
+        sendStreamError("not-authorized", "SASL authentication failed");
+        state.set(ConnectionState.CLOSING);
+    }
+    
+    private void sendFeatures(String features) {
+        OutgoingStanzaMessage featuresMessage = new OutgoingStanzaMessage(
+            connectionId, features, java.time.Instant.now()
+        );
+        outboundSender.accept(featuresMessage);
+    }
 }
