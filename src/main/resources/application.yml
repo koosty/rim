@@ -1,3 +1,31 @@
+# Default Application Configuration
+# Use 'dev' profile for H2 development, 'prod' profile for PostgreSQL production
+
+spring:
+  profiles:
+    active: dev  # Default to development profile
+
+---
+# Production Profile - PostgreSQL Database
+spring:
+  config:
+    activate:
+      on-profile: prod
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/xmpp
+    username: xmpp_user
+    password: xmpp_pass
+    pool:
+      initial-size: 10
+      max-size: 50
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      continue-on-error: false
+
+---
+# Common Configuration (applies to all profiles)
 server:
   port: 8080
 
@@ -40,16 +68,6 @@ xmpp:
         - PLAIN
         - SCRAM-SHA-1
         - SCRAM-SHA-256
-
-# Database Configuration
-spring:
-  r2dbc:
-    url: r2dbc:postgresql://localhost:5432/xmpp
-    username: xmpp_user
-    password: xmpp_pass
-    pool:
-      initial-size: 10
-      max-size: 50
 
 # Logging Configuration
 logging:

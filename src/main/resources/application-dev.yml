@@ -1,0 +1,77 @@
+# Development Profile - H2 In-Memory Database
+server:
+  port: 8080
+
+# XMPP Server Configuration
+xmpp:
+  server:
+    port: 5222
+    domain: localhost
+    timeout-minutes: 30
+    max-connections: 1000  # Lower limit for development
+  
+  # Security settings
+  security:
+    tls:
+      # Enable TLS support but not required for development
+      enabled: true
+      required: false  # Allow non-TLS connections for easier testing
+      
+      # Keystore configuration
+      keystore-path: classpath:keystore.jks
+      keystore-password: changeit
+      keystore-type: JKS
+      
+      # TLS protocol versions to support
+      supported-protocols:
+        - TLSv1.2
+        - TLSv1.3
+      
+      # TLS cipher suites (empty = use JVM defaults)
+      supported-cipher-suites: []
+      
+      # Client certificate verification
+      client-auth: none
+      
+    sasl:
+      mechanisms:
+        - PLAIN
+        - SCRAM-SHA-1
+        - SCRAM-SHA-256
+
+# H2 Database Configuration for Development
+spring:
+  r2dbc:
+    url: r2dbc:h2:mem:///xmpp_dev;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: xmpp_dev
+    password: dev_pass
+    pool:
+      initial-size: 5   # Smaller pool for development
+      max-size: 10
+  
+  # Initialize schema on startup
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
+      continue-on-error: false
+
+# Development-friendly Logging
+logging:
+  level:
+    io.github.koosty.xmpp: DEBUG
+    reactor.netty: INFO
+    io.r2dbc: DEBUG  # Show R2DBC queries for development
+    org.springframework.r2dbc: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%15.15t] %-5level %-40.40logger{39} : %msg%n"
+
+# H2 Console (useful for development)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
