@@ -192,12 +192,22 @@ public class ConnectionActor {
                 return;
             }
             
-            if (state.get() == ConnectionState.STREAM_INITIATED) {
+            // Handle resource binding and session IQ stanzas
+            if (authenticated && xmlData.contains("<iq") && 
+                (xmlData.contains("xmlns='urn:ietf:params:xml:ns:xmpp-bind'") || 
+                 xmlData.contains("xmlns='urn:ietf:params:xml:ns:xmpp-session'"))) {
+                logger.debug("Routing resource binding/session IQ to resource binding actor");
+                // Route to resource binding actor (to be implemented)
+                handleResourceBinding(ResourceBindingMessage.of(connectionId, xmlData));
+                return;
+            }
+            
+            if (state.get() == ConnectionState.STREAM_INITIATED && !authenticated) {
                 // Send initial stream features
                 sendStreamFeatures();
                 state.set(ConnectionState.TLS_NEGOTIATING);
             } else {
-                // Process regular stanza (to be implemented in later phases)
+                // Process regular stanza
                 logger.debug("Received stanza on connection {}: {}", connectionId, xmlData);
             }
         } catch (Exception e) {
@@ -207,7 +217,8 @@ public class ConnectionActor {
     }
     
     private void handleStreamOpen(String streamHeader) {
-        logger.info("Stream opened for connection {}", connectionId);
+        logger.info("Stream opened for connection {} - authenticated: {}, awaitingPostSaslStream: {}", 
+                   connectionId, authenticated, awaitingPostSaslStream);
         
         // Generate stream ID and response header
         streamId = xmlProcessor.generateStreamId();
@@ -216,12 +227,17 @@ public class ConnectionActor {
         xmlProcessor.generateStreamHeader(serverDomain, null, streamId)
             .doOnNext(header -> {
                 outboundSender.accept(OutgoingStanzaMessage.of(connectionId, header));
-                // Immediately send stream features after the stream header
+                // Send appropriate stream features based on connection state
                 sendStreamFeatures();
             })
             .subscribe();
             
-        state.set(ConnectionState.STREAM_INITIATED);
+        // Update state based on current authentication status
+        if (authenticated) {
+            state.set(ConnectionState.AUTHENTICATED);
+        } else {
+            state.set(ConnectionState.STREAM_INITIATED);
+        }
     }
     
     private void handleStreamClose() {
@@ -271,22 +287,67 @@ public class ConnectionActor {
     
     private void handleStreamInitiation(StreamInitiationMessage message) {
         logger.debug("Handling stream initiation for connection {}", connectionId);
-        // Implementation will be expanded in later phases
+        // Stream initiation is handled through processIncomingXml -> handleStreamOpen
+        // This method exists for future extension if needed
     }
     
     private void handleTlsNegotiation(TlsNegotiationMessage message) {
         logger.debug("Handling TLS negotiation for connection {}", connectionId);
-        // Implementation will be added in Phase 2
+        // TLS negotiation is delegated to TlsNegotiationActor
+        // Results come back through TLS_NEGOTIATION_SUCCESS/FAILURE messages
     }
     
     private void handleSaslAuth(SaslAuthMessage message) {
         logger.debug("Handling SASL auth for connection {}", connectionId);
-        // Implementation will be added in Phase 2
+        // SASL authentication is delegated to SaslAuthenticationActor
+        // Results come back through SASL_AUTH_SUCCESS/FAILURE messages
     }
     
     private void handleResourceBinding(ResourceBindingMessage message) {
         logger.debug("Handling resource binding for connection {}", connectionId);
-        // Implementation will be added in Phase 3
+        
+        // Simple resource binding implementation
+        String xmlData = message.xmlData();
+        
+        if (xmlData.contains("xmlns='urn:ietf:params:xml:ns:xmpp-bind'")) {
+            // Extract IQ id for response
+            String iqId = extractIqId(xmlData);
+            
+            // Generate a simple resource
+            String resource = "resource" + System.currentTimeMillis() % 10000;
+            String fullJid = authenticatedJid + "/" + resource;
+            
+            // Send bind result
+            String bindResult = String.format("""
+                <iq type='result' id='%s'>
+                    <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>
+                        <jid>%s</jid>
+                    </bind>
+                </iq>""", iqId, fullJid);
+                
+            logger.info("Resource binding successful for connection {}: {}", connectionId, fullJid);
+            outboundSender.accept(OutgoingStanzaMessage.of(connectionId, bindResult));
+            
+            // Update client JID with resource
+            clientJid = fullJid;
+            state.set(ConnectionState.RESOURCE_BOUND);
+            
+        } else if (xmlData.contains("xmlns='urn:ietf:params:xml:ns:xmpp-session'")) {
+            // Handle session establishment
+            String iqId = extractIqId(xmlData);
+            String sessionResult = String.format("<iq type='result' id='%s'/>", iqId);
+            
+            logger.info("Session established for connection {}", connectionId);
+            outboundSender.accept(OutgoingStanzaMessage.of(connectionId, sessionResult));
+            state.set(ConnectionState.SESSION_ESTABLISHED);
+        }
+    }
+    
+    private String extractIqId(String xmlData) {
+        // Simple regex to extract id attribute
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("id='([^']*)'");
+        java.util.regex.Matcher matcher = pattern.matcher(xmlData);
+        return matcher.find() ? matcher.group(1) : "unknown";
     }
     
     private void handleConnectionClosed(ConnectionClosedMessage message) {

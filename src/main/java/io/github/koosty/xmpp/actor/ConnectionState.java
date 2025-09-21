@@ -45,6 +45,16 @@ public enum ConnectionState {
     BOUND,
     
     /**
+     * Resource has been bound to the session
+     */
+    RESOURCE_BOUND,
+    
+    /**
+     * Session has been established - fully ready for communication
+     */
+    SESSION_ESTABLISHED,
+    
+    /**
      * Connection is being closed
      */
     CLOSING,

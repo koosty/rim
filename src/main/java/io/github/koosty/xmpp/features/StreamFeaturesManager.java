@@ -25,13 +25,21 @@ public class StreamFeaturesManager {
     /**
      * Generates stream features for initial connection (before TLS).
      * STARTTLS is offered if TLS is enabled.
+     * SASL mechanisms are also offered if TLS is not required.
      */
     public String generateInitialFeatures() {
         if (securityProperties.getTls().isEnabled()) {
             String starttlsFeature = securityProperties.getTls().isRequired() ?
                 "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'><required/></starttls>" :
                 "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>";
-            return wrapFeatures(starttlsFeature);
+            
+            // If TLS is not required, also offer SASL mechanisms in initial features
+            if (!securityProperties.getTls().isRequired()) {
+                String saslFeatures = generateSaslMechanisms();
+                return wrapFeatures(starttlsFeature + saslFeatures);
+            } else {
+                return wrapFeatures(starttlsFeature);
+            }
         } else {
             // If TLS is disabled, offer SASL mechanisms directly
             return generateSaslFeatures();
@@ -50,9 +58,16 @@ public class StreamFeaturesManager {
      * Generates SASL mechanism features based on configuration.
      */
     private String generateSaslFeatures() {
+        return wrapFeatures(generateSaslMechanisms());
+    }
+    
+    /**
+     * Generates just the SASL mechanisms XML without the stream:features wrapper.
+     */
+    private String generateSaslMechanisms() {
         String[] mechanisms = securityProperties.getSasl().getMechanisms();
         if (mechanisms.length == 0) {
-            return wrapFeatures("");
+            return "";
         }
 
         StringBuilder saslBuilder = new StringBuilder();
@@ -62,7 +77,7 @@ public class StreamFeaturesManager {
         }
         saslBuilder.append("</mechanisms>");
 
-        return wrapFeatures(saslBuilder.toString());
+        return saslBuilder.toString();
     }
 
     /**

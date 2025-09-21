@@ -13,8 +13,8 @@ xmpp:
   # Security settings
   security:
     tls:
-      # Enable TLS support but not required for development
-      enabled: false
+      # Enable TLS support for RFC 6120 compliance testing
+      enabled: true
       required: false  # Allow non-TLS connections for easier testing
       
       # Keystore configuration

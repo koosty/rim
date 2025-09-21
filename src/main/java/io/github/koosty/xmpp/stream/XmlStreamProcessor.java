@@ -1,5 +1,7 @@
 package io.github.koosty.xmpp.stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -19,7 +21,7 @@ import java.util.UUID;
  */
 @Component
 public class XmlStreamProcessor {
-    
+    private static final Logger logger = LoggerFactory.getLogger(XmlStreamProcessor.class);
     private final XMLInputFactory inputFactory;
     private final XMLOutputFactory outputFactory;
     
@@ -54,7 +56,7 @@ public class XmlStreamProcessor {
             
             header.append(" version=\"1.0\"");
             header.append(" xml:lang=\"en\">");
-            
+            logger.debug("Generated stream header: {}", header.toString());
             return header.toString();
         });
     }
