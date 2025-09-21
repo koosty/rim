@@ -274,7 +274,6 @@ public class ConnectionActor {
             }
         }
         
-        logger.debug("Sending stream features to connection {}: {}", connectionId, features);
         outboundSender.accept(OutgoingStanzaMessage.of(connectionId, features));
     }
     
@@ -432,6 +431,7 @@ public class ConnectionActor {
     }
     
     private void sendFeatures(String features) {
+        logger.debug("Sending stream features to connection {}: {}", connectionId, features);
         OutgoingStanzaMessage featuresMessage = new OutgoingStanzaMessage(
             connectionId, features, java.time.Instant.now()
         );

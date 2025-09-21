@@ -60,9 +60,10 @@ spring:
 logging:
   level:
     io.github.koosty.xmpp: DEBUG
-    reactor.netty: INFO
-    io.r2dbc: DEBUG  # Show R2DBC queries for development
-    org.springframework.r2dbc: DEBUG
+    org.jivesoftware.smack: DEBUG
+    #reactor.netty: INFO
+    #io.r2dbc: DEBUG  # Show R2DBC queries for development
+    #org.springframework.r2dbc: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%15.15t] %-5level %-40.40logger{39} : %msg%n"
 

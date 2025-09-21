@@ -94,6 +94,12 @@
 			<artifactId>awaitility</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.igniterealtime.smack</groupId>
+			<artifactId>smack-java8-full</artifactId>
+			<version>4.4.8</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>

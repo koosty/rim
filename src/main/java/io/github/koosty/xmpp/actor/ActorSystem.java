@@ -50,6 +50,7 @@ public class ActorSystem {
         Consumer<OutgoingStanzaMessage> outboundSender = message -> {
             NettyOutbound connection = outboundConnections.get(message.connectionId());
             if (connection != null) {
+                logger.debug("Sending message {} to connection {}: {}", message.getType(), connectionId, message.xmlData());
                 connection.sendString(reactor.core.publisher.Mono.just(message.xmlData()))
                     .then()
                     .subscribe(
