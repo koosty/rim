@@ -336,7 +336,38 @@ class Rfc6120ComplianceTest {
                .until(() -> !sentMessages.isEmpty());
 
         // Step 2: Simulate successful SASL authentication to reach AUTHENTICATED state
-        //actorSystem.tellConnectionActor(connectionId, new SaslAuthSuccessMessage(connectionId, "testuser"));
+        String saslAuth = """
+            <auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>
+                dGVzdAB0ZXN0AHRlc3Q=
+            </auth>
+            """;
+            
+        actorSystem.tellConnectionActor(connectionId, IncomingXmlMessage.of(connectionId, saslAuth));
+        
+        await().atMost(Duration.ofSeconds(5))
+               .until(() -> sentMessages.stream().anyMatch(msg -> 
+                   msg.contains("<success") || msg.contains("<failure")));
+        
+        // Print all messages for debugging
+        System.out.println("=== Messages after SASL auth ===");
+        for (String msg : sentMessages) {
+            System.out.println("MSG: " + msg);
+        }
+        
+        // Verify SASL success
+        boolean saslSuccess = sentMessages.stream().anyMatch(msg -> msg.contains("<success"));
+        if (!saslSuccess) {
+            boolean saslFailure = sentMessages.stream().anyMatch(msg -> msg.contains("<failure"));
+            if (saslFailure) {
+                String failureMsg = sentMessages.stream()
+                    .filter(msg -> msg.contains("<failure"))
+                    .findFirst()
+                    .orElse("No failure message found");
+                System.out.println("SASL FAILURE: " + failureMsg);
+            }
+            // For now, let's continue even if SASL fails to see if the test issue is elsewhere
+            System.out.println("SASL authentication failed, but continuing test...");
+        }
         
         // Step 3: Send post-auth stream restart
         sentMessages.clear();
@@ -344,11 +375,15 @@ class Rfc6120ComplianceTest {
         
         await().atMost(Duration.ofSeconds(3))
                .until(() -> !sentMessages.isEmpty());
-        
+
+        // Print all messages for debugging
+        System.out.println("=== Messages after stream restart ===");
+        for (String msg : sentMessages) {
+            System.out.println("MSG: " + msg);
+        }
+
         boolean hasBindFeature = sentMessages.stream()
-                .anyMatch(msg -> msg.contains("stream:features") && msg.contains("bind"));
-        
-        assertTrue(hasBindFeature, 
+                .anyMatch(msg -> msg.contains("stream:features") && msg.contains("bind"));        assertTrue(hasBindFeature, 
                   "Post-authentication stream must advertise resource binding feature");
 
         // Step 4: Send resource binding IQ

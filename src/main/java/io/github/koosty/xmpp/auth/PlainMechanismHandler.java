@@ -3,6 +3,7 @@ package io.github.koosty.xmpp.auth;
 import java.util.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
 
 /**
  * SASL PLAIN mechanism handler according to RFC4616.
@@ -11,8 +12,13 @@ import org.slf4j.LoggerFactory;
 public class PlainMechanismHandler implements SaslMechanismHandler {
     private static final Logger logger = LoggerFactory.getLogger(PlainMechanismHandler.class);
     
+    private final UserAuthenticationService authenticationService;
     private boolean complete = false;
     private String authenticatedJid = null;
+    
+    public PlainMechanismHandler(UserAuthenticationService authenticationService) {
+        this.authenticationService = authenticationService;
+    }
     
     @Override
     public String processInitialAuth(String authData) throws Exception {
@@ -48,13 +54,29 @@ public class PlainMechanismHandler implements SaslMechanismHandler {
             String authcid = parts.length >= 3 ? parts[1] : parts[0];
             String passwd = parts.length >= 3 ? parts[2] : parts[1];
             
-            // For demo purposes, accept any non-empty credentials
-            // In a real implementation, this would verify against a user database
+            // Use UserAuthenticationService to verify credentials
             if (!authcid.isEmpty() && !passwd.isEmpty()) {
-                authenticatedJid = authcid + "@localhost";
-                complete = true;
-                logger.info("PLAIN authentication successful for user: {}", authcid);
-                return null; // Success, no challenge needed
+                try {
+                    // Block on the Mono to get the result synchronously
+                    // TODO: In future, make the SASL handler interface async
+                    String resultJid = authenticationService.authenticatePlain(authcid, passwd)
+                        .block(java.time.Duration.ofSeconds(5)); // 5 second timeout
+                    
+                    if (resultJid != null) {
+                        authenticatedJid = resultJid;
+                        complete = true;
+                        logger.info("PLAIN authentication successful for user: {}", authcid);
+                        return null; // Success, no challenge needed
+                    } else {
+                        logger.warn("PLAIN authentication failed for user: {}", authcid);
+                        complete = true;
+                        return null;
+                    }
+                } catch (Exception e) {
+                    logger.error("PLAIN authentication error for user {}: {}", authcid, e.getMessage());
+                    complete = true;
+                    return null;
+                }
             } else {
                 logger.warn("PLAIN authentication failed: empty credentials");
                 complete = true;

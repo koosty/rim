@@ -236,6 +236,13 @@ public class ConnectionActor {
         xmlProcessor.generateStreamHeader(serverDomain, null, streamId)
             .doOnNext(header -> {
                 outboundSender.accept(OutgoingStanzaMessage.of(connectionId, header));
+                
+                // If authenticated and doing stream restart, set flag for post-SASL features
+                if (authenticated && !awaitingPostSaslStream) {
+                    awaitingPostSaslStream = true;
+                    logger.debug("Set awaitingPostSaslStream=true for stream restart after authentication");
+                }
+                
                 // Send appropriate stream features based on connection state
                 sendStreamFeatures();
             })
@@ -267,20 +274,22 @@ public class ConnectionActor {
         logger.debug("sendStreamFeatures() - tlsEstablished: {}, authenticated: {}, awaitingPostSaslStream: {}", 
                     tlsEstablished, authenticated, awaitingPostSaslStream);
         
-        if (!tlsEstablished) {
+        // Handle post-SASL features first (after authentication)
+        if (authenticated && awaitingPostSaslStream) {
+            logger.debug("Generating post-SASL features (bind/session)");
+            features = featuresManager.generatePostSaslFeatures();
+            // Clear the flag after sending post-SASL features
+            awaitingPostSaslStream = false;
+            logger.debug("Cleared awaitingPostSaslStream flag for connection {}", connectionId);
+        } else if (!tlsEstablished) {
             logger.debug("Generating initial features (pre-TLS)");
             features = featuresManager.generateInitialFeatures();
         } else if (!authenticated && !awaitingPostSaslStream) {
             logger.debug("Generating post-TLS features (SASL)");
             features = featuresManager.generatePostTlsFeatures();
         } else {
-            logger.debug("Generating post-SASL features (bind/session)");
+            logger.debug("Generating post-SASL features (bind/session) - fallback");
             features = featuresManager.generatePostSaslFeatures();
-            // Clear the flag after sending post-SASL features
-            if (awaitingPostSaslStream) {
-                awaitingPostSaslStream = false;
-                logger.debug("Cleared awaitingPostSaslStream flag for connection {}", connectionId);
-            }
         }
         
         outboundSender.accept(OutgoingStanzaMessage.of(connectionId, features));

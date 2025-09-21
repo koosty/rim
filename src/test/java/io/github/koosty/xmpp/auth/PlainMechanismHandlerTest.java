@@ -2,7 +2,12 @@ package io.github.koosty.xmpp.auth;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import reactor.core.publisher.Mono;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import java.util.Base64;
 
 /**
@@ -12,9 +17,20 @@ class PlainMechanismHandlerTest {
     
     private PlainMechanismHandler handler;
     
+    @Mock
+    private UserAuthenticationService userAuthenticationService;
+    
     @BeforeEach
     void setUp() {
-        handler = new PlainMechanismHandler();
+        MockitoAnnotations.openMocks(this);
+        // Mock successful authentication for valid credentials
+        when(userAuthenticationService.authenticatePlain("testuser", "password123"))
+            .thenReturn(Mono.just("testuser@localhost"));
+        // Mock for empty credentials
+        when(userAuthenticationService.authenticatePlain("", ""))
+            .thenReturn(Mono.empty());
+        
+        handler = new PlainMechanismHandler(userAuthenticationService);
     }
     
     @Test

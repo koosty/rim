@@ -2,9 +2,11 @@ package io.github.koosty.xmpp.service;
 
 import io.github.koosty.xmpp.config.ServiceConfiguration;
 import io.github.koosty.xmpp.config.XmppSecurityProperties;
+import io.github.koosty.xmpp.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import static org.junit.jupiter.api.Assertions.*;
@@ -17,6 +19,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = {ServiceConfiguration.class})
 @EnableConfigurationProperties(XmppSecurityProperties.class)
 class ServiceLayerIntegrationTest {
+
+    @MockBean
+    private UserRepository userRepository;
 
     @Autowired
     private TlsNegotiationService tlsNegotiationService;

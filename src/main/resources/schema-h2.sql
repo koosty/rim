@@ -48,8 +48,21 @@ KEY (jid)
 VALUES (
     'testuser@localhost',
     'testuser',
-    'tDVJ/CqM8paFACTeEk/dRx8JzF6yCnQCJMQQg3+LF1E=', -- Base64 SHA-256 hash of "test123" + salt
+    'FwrAbgAgR6J7iztnvdTNp9pnFxIhjqk9Rc5RBTl/XeY=', -- Base64 SHA-256 hash of "test123" + salt "demosalt"
     'ZGVtb3NhbHQ=', -- Base64 encoded "demosalt"
+    'SHA-256',
+    CURRENT_TIMESTAMP,
+    TRUE
+);
+
+-- Insert test user for compliance testing (password: "test")
+MERGE INTO xmpp_users (jid, username, password_hash, password_salt, hash_algorithm, created_at, active)
+KEY (jid)
+VALUES (
+    'test@localhost',
+    'test',
+    'E0lZtDKLSFSX6HvB9ExbgaaVA9MxRC0OLeOzAi2h/48=', -- Base64 SHA-256 hash of "test" + salt "testsalt"
+    'dGVzdHNhbHQ=', -- Base64 encoded "testsalt"
     'SHA-256',
     CURRENT_TIMESTAMP,
     TRUE
@@ -74,7 +87,7 @@ KEY (jid)
 VALUES (
     'alice@localhost',
     'alice',
-    'xP8QZnXhV3JYhqJw9rR8F2Y4KlM6yCnQCJMQQg3+ABC=', -- Base64 SHA-256 hash of "password123" + salt
+    'iUmmBYNCfraXI48GOPXO3MtHN0Ez3KLFObr4tRQt6uU=', -- Base64 SHA-256 hash of "alice123" + salt "alicesalt"
     'YWxpY2VzYWx0', -- Base64 encoded "alicesalt"
     'SHA-256',
     CURRENT_TIMESTAMP,

@@ -5,6 +5,7 @@ import io.github.koosty.xmpp.auth.SaslMechanismHandler;
 import io.github.koosty.xmpp.auth.PlainMechanismHandler;
 import io.github.koosty.xmpp.auth.ScramSha1MechanismHandler;
 import io.github.koosty.xmpp.auth.ScramSha256MechanismHandler;
+import io.github.koosty.xmpp.auth.UserAuthenticationService;
 import reactor.core.publisher.Mono;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ public class DefaultSaslAuthenticationService implements SaslAuthenticationServi
     
     private static final Logger logger = LoggerFactory.getLogger(DefaultSaslAuthenticationService.class);
     
+    private final UserAuthenticationService userAuthenticationService;
     private final Map<String, SaslMechanismHandler> mechanismHandlers = new HashMap<>();
     private final ConcurrentMap<String, SaslState> connectionStates = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, String> authenticatedJids = new ConcurrentHashMap<>();
@@ -34,12 +36,13 @@ public class DefaultSaslAuthenticationService implements SaslAuthenticationServi
         IDLE, AUTHENTICATING, SUCCESS, FAILURE
     }
     
-    public DefaultSaslAuthenticationService() {
+    public DefaultSaslAuthenticationService(UserAuthenticationService userAuthenticationService) {
+        this.userAuthenticationService = userAuthenticationService;
         initializeMechanismHandlers();
     }
     
     private void initializeMechanismHandlers() {
-        mechanismHandlers.put("PLAIN", new PlainMechanismHandler());
+        mechanismHandlers.put("PLAIN", new PlainMechanismHandler(userAuthenticationService));
         mechanismHandlers.put("SCRAM-SHA-1", new ScramSha1MechanismHandler());
         mechanismHandlers.put("SCRAM-SHA-256", new ScramSha256MechanismHandler());
     }

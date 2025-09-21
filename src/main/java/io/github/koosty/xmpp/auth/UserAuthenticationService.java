@@ -118,7 +118,9 @@ public class UserAuthenticationService {
                 default:
                     // Fallback to simple SHA-256 for demo
                     MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                    digest.update((password + salt).getBytes(StandardCharsets.UTF_8));
+                    // Decode the Base64 salt before using it
+                    String decodedSalt = new String(Base64.getDecoder().decode(salt), StandardCharsets.UTF_8);
+                    digest.update((password + decodedSalt).getBytes(StandardCharsets.UTF_8));
                     return Base64.getEncoder().encodeToString(digest.digest());
             }
         } catch (Exception e) {

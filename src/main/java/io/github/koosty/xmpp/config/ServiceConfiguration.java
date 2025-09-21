@@ -12,9 +12,11 @@ import io.github.koosty.xmpp.stream.XmlStreamProcessor;
 import io.github.koosty.xmpp.jid.JidValidator;
 import io.github.koosty.xmpp.jid.Jid;
 import io.github.koosty.xmpp.resource.ResourceManager;
+import io.github.koosty.xmpp.auth.UserAuthenticationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 import java.util.Optional;
 import java.util.Set;
 
@@ -23,7 +25,8 @@ import java.util.Set;
  * Ensures proper bean registration and dependency injection for service-based architecture.
  */
 @Configuration
-@ComponentScan("io.github.koosty.xmpp.service")
+@ComponentScan({"io.github.koosty.xmpp.service", "io.github.koosty.xmpp.auth"})
+@EnableR2dbcRepositories(basePackages = "io.github.koosty.xmpp.repository")
 public class ServiceConfiguration {
 
     // Mock dependency implementations for testing
@@ -118,8 +121,8 @@ public class ServiceConfiguration {
      * Configure SASL authentication service bean.
      */
     @Bean
-    public SaslAuthenticationService saslAuthenticationService() {
-        return new DefaultSaslAuthenticationService();
+    public SaslAuthenticationService saslAuthenticationService(UserAuthenticationService userAuthenticationService) {
+        return new DefaultSaslAuthenticationService(userAuthenticationService);
     }
 
     /**
