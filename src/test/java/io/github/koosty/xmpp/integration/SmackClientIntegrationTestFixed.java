@@ -9,8 +9,6 @@ import org.jivesoftware.smack.packet.IQ;
 import org.jivesoftware.smack.packet.Message;
 import org.jivesoftware.smack.packet.Presence;
 import org.jivesoftware.smack.packet.Stanza;
-import org.jivesoftware.smack.roster.Roster;
-import org.jivesoftware.smack.roster.Roster.SubscriptionMode;
 import org.jivesoftware.smack.tcp.XMPPTCPConnection;
 import org.jivesoftware.smack.tcp.XMPPTCPConnectionConfiguration;
 import org.jivesoftware.smackx.ping.PingManager;
@@ -102,7 +100,7 @@ public class SmackClientIntegrationTestFixed {
                 logger.info("Received stanza: {}", packet.toXML());
             }
         }, stanza -> true);
-        //connection1.setReplyTimeout(10000);
+        
         // Connect and authenticate
         connection1.connect();
         assertThat(connectionLatch.await(10, TimeUnit.SECONDS)).isTrue();

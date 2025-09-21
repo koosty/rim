@@ -76,30 +76,6 @@ public class ActorMetrics extends AbstractActor implements HealthIndicator {
         Long messagesProcessed = (Long) genericMessage.payload().get("messagesProcessed");
         Long processingTime = (Long) genericMessage.payload().get("processingTime");
         Long errorCount = (Long) genericMessage.payload().get("errorCount");
-        Boolean healthy = (Boolean) genericMessage.payload().get("healthy");
-        
-        ActorMetricsData metrics = actorMetrics.compute(actorName, (key, existing) -> {
-            if (existing == null) {
-                return new ActorMetricsData(
-                    actorName,
-                    messagesProcessed != null ? messagesProcessed : 0,
-                    processingTime != null ? processingTime : 0,
-                    errorCount != null ? errorCount : 0,
-                    healthy != null ? healthy : true,
-                    Instant.now()
-                );
-            } else {
-                return new ActorMetricsData(
-                    actorName,
-                    messagesProcessed != null ? messagesProcessed : existing.messagesProcessed(),
-                    processingTime != null ? processingTime : existing.totalProcessingTime(),
-                    errorCount != null ? errorCount : existing.errorCount(),
-                    healthy != null ? healthy : existing.healthy(),
-                    Instant.now()
-                );
-            }
-        });
-        
         if (messagesProcessed != null) {
             totalMessagesProcessed.addAndGet(messagesProcessed);
         }

@@ -1,7 +1,6 @@
 package io.github.koosty.xmpp.actor;
 
 import io.github.koosty.xmpp.actor.message.ActorMessage;
-import io.github.koosty.xmpp.actor.message.MessageType;
 import io.github.koosty.xmpp.actor.message.GenericActorMessage;
 import reactor.core.publisher.Mono;
 import org.slf4j.Logger;

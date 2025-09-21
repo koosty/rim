@@ -1,7 +1,6 @@
 package io.github.koosty.xmpp.auth;
 
 import java.util.Base64;
-import java.util.StringTokenizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +45,6 @@ public class PlainMechanismHandler implements SaslMechanismHandler {
                 return null;
             }
             
-            String authzid = parts.length >= 3 ? parts[0] : "";
             String authcid = parts.length >= 3 ? parts[1] : parts[0];
             String passwd = parts.length >= 3 ? parts[2] : parts[1];
             

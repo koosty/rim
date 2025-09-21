@@ -5,6 +5,10 @@ import io.github.koosty.xmpp.actor.message.OutgoingStanzaMessage;
 import io.github.koosty.xmpp.config.XmppSecurityProperties;
 import io.github.koosty.xmpp.stream.XmlStreamProcessor;
 import io.github.koosty.xmpp.features.StreamFeaturesManager;
+import io.github.koosty.xmpp.service.TlsNegotiationService;
+import io.github.koosty.xmpp.service.SaslAuthenticationService;
+import io.github.koosty.xmpp.service.ResourceBindingService;
+import io.github.koosty.xmpp.service.IqProcessingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -29,12 +33,26 @@ public class ActorSystem {
     private final StreamFeaturesManager featuresManager;
     private final XmppSecurityProperties securityProperties;
     
+    // Injected services for actor creation
+    private final TlsNegotiationService tlsNegotiationService;
+    private final SaslAuthenticationService saslAuthenticationService;
+    private final ResourceBindingService resourceBindingService;
+    private final IqProcessingService iqProcessingService;
+    
     public ActorSystem(XmlStreamProcessor xmlProcessor, StreamFeaturesManager featuresManager,
-                      XmppSecurityProperties securityProperties) {
+                      XmppSecurityProperties securityProperties,
+                      TlsNegotiationService tlsNegotiationService,
+                      SaslAuthenticationService saslAuthenticationService,
+                      ResourceBindingService resourceBindingService,
+                      IqProcessingService iqProcessingService) {
         this.xmlProcessor = xmlProcessor;
         this.featuresManager = featuresManager;
         this.securityProperties = securityProperties;
-        logger.info("ActorSystem initialized");
+        this.tlsNegotiationService = tlsNegotiationService;
+        this.saslAuthenticationService = saslAuthenticationService;
+        this.resourceBindingService = resourceBindingService;
+        this.iqProcessingService = iqProcessingService;
+        logger.info("ActorSystem initialized with service composition");
     }
     
     /**
@@ -63,9 +81,11 @@ public class ActorSystem {
             }
         };
         
-        // Create and start the actor
+        // Create and start the actor with service dependencies
         ConnectionActor actor = new ConnectionActor(connectionId, xmlProcessor, outboundSender, 
-                                                   featuresManager, this, securityProperties);
+                                                   featuresManager, this, securityProperties,
+                                                   tlsNegotiationService, saslAuthenticationService,
+                                                   resourceBindingService, iqProcessingService);
         connectionActors.put(connectionId, actor);
         
         // Set the NettyOutbound for the actor (used by TLS and SASL actors)

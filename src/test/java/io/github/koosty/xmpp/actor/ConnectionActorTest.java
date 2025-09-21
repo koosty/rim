@@ -4,8 +4,10 @@ import io.github.koosty.xmpp.actor.message.IncomingXmlMessage;
 import io.github.koosty.xmpp.config.XmppSecurityProperties;
 import io.github.koosty.xmpp.stream.XmlStreamProcessor;
 import io.github.koosty.xmpp.features.StreamFeaturesManager;
+import io.github.koosty.xmpp.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -33,9 +35,16 @@ class ConnectionActorTest {
         // Mock ActorSystem for testing
         ActorSystem mockActorSystem = null; // In tests, we can use null for now
         
+        // Mock services
+        TlsNegotiationService mockTlsService = Mockito.mock(TlsNegotiationService.class);
+        SaslAuthenticationService mockSaslService = Mockito.mock(SaslAuthenticationService.class);
+        ResourceBindingService mockResourceService = Mockito.mock(ResourceBindingService.class);
+        IqProcessingService mockIqService = Mockito.mock(IqProcessingService.class);
+        
         actor = new ConnectionActor("test-conn", xmlProcessor, message -> {
             lastOutboundMessage.set(message.xmlData());
-        }, featuresManager, mockActorSystem, securityProperties);
+        }, featuresManager, mockActorSystem, securityProperties,
+           mockTlsService, mockSaslService, mockResourceService, mockIqService);
     }
     
     @Test

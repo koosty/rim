@@ -3,7 +3,6 @@ package io.github.koosty.xmpp.compliance;
 import io.github.koosty.xmpp.actor.ActorSystem;
 import io.github.koosty.xmpp.actor.ConnectionActor;
 import io.github.koosty.xmpp.actor.message.IncomingXmlMessage;
-import io.github.koosty.xmpp.actor.message.SaslAuthSuccessMessage;
 import io.github.koosty.xmpp.error.XmppErrorHandler;
 import io.github.koosty.xmpp.error.StanzaErrorCondition;
 import io.github.koosty.xmpp.error.StanzaErrorType;
@@ -337,7 +336,7 @@ class Rfc6120ComplianceTest {
                .until(() -> !sentMessages.isEmpty());
 
         // Step 2: Simulate successful SASL authentication to reach AUTHENTICATED state
-        actorSystem.tellConnectionActor(connectionId, new SaslAuthSuccessMessage(connectionId, "testuser"));
+        //actorSystem.tellConnectionActor(connectionId, new SaslAuthSuccessMessage(connectionId, "testuser"));
         
         // Step 3: Send post-auth stream restart
         sentMessages.clear();

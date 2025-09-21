@@ -4,6 +4,10 @@ import io.github.koosty.xmpp.actor.message.*;
 import io.github.koosty.xmpp.config.XmppSecurityProperties;
 import io.github.koosty.xmpp.stream.XmlStreamProcessor;
 import io.github.koosty.xmpp.features.StreamFeaturesManager;
+import io.github.koosty.xmpp.service.TlsNegotiationService;
+import io.github.koosty.xmpp.service.SaslAuthenticationService;
+import io.github.koosty.xmpp.service.ResourceBindingService;
+import io.github.koosty.xmpp.service.IqProcessingService;
 import reactor.netty.NettyOutbound;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,12 +33,16 @@ public class ConnectionActor {
     private final StreamFeaturesManager featuresManager;
     private final ActorSystem actorSystem;
     private final XmppSecurityProperties securityProperties;
+    
+    // Injected services for handling specific XMPP operations
+    private final TlsNegotiationService tlsNegotiationService;
+    private final SaslAuthenticationService saslAuthenticationService;
+    private final ResourceBindingService resourceBindingService;
+    private final IqProcessingService iqProcessingService;
+    
     private volatile Thread processingThread;
     private volatile boolean running = true;
     
-    // Phase 2: TLS and SASL actors
-    private volatile TlsNegotiationActor tlsActor;
-    private volatile SaslAuthenticationActor saslActor;
     private volatile NettyOutbound nettyOutbound;
     
     // Connection-specific state
@@ -50,13 +58,21 @@ public class ConnectionActor {
                           Consumer<OutgoingStanzaMessage> outboundSender, 
                           StreamFeaturesManager featuresManager,
                           ActorSystem actorSystem,
-                          XmppSecurityProperties securityProperties) {
+                          XmppSecurityProperties securityProperties,
+                          TlsNegotiationService tlsNegotiationService,
+                          SaslAuthenticationService saslAuthenticationService,
+                          ResourceBindingService resourceBindingService,
+                          IqProcessingService iqProcessingService) {
         this.connectionId = connectionId;
         this.xmlProcessor = xmlProcessor;
         this.outboundSender = outboundSender;
         this.featuresManager = featuresManager;
         this.actorSystem = actorSystem;
         this.securityProperties = securityProperties;
+        this.tlsNegotiationService = tlsNegotiationService;
+        this.saslAuthenticationService = saslAuthenticationService;
+        this.resourceBindingService = resourceBindingService;
+        this.iqProcessingService = iqProcessingService;
     }
     
     /**
@@ -133,12 +149,6 @@ public class ConnectionActor {
         switch (message.getType()) {
             case INCOMING_XML -> processIncomingXml((IncomingXmlMessage) message);
             case STREAM_INITIATION -> handleStreamInitiation((StreamInitiationMessage) message);
-            case TLS_NEGOTIATION -> handleTlsNegotiation((TlsNegotiationMessage) message);
-            case TLS_NEGOTIATION_SUCCESS -> handleTlsSuccess((TlsNegotiationSuccessMessage) message);
-            case TLS_NEGOTIATION_FAILURE -> handleTlsFailure((TlsNegotiationFailureMessage) message);
-            case SASL_AUTH -> handleSaslAuth((SaslAuthMessage) message);
-            case SASL_AUTH_SUCCESS -> handleSaslSuccess((SaslAuthSuccessMessage) message);
-            case SASL_AUTH_FAILURE -> handleSaslFailure((SaslAuthFailureMessage) message);
             case RESOURCE_BINDING -> handleResourceBinding((ResourceBindingMessage) message);
             case CONNECTION_CLOSED -> handleConnectionClosed((ConnectionClosedMessage) message);
             default -> logger.warn("Unhandled message type {} for connection {}", message.getType(), connectionId);
@@ -171,24 +181,17 @@ public class ConnectionActor {
                     return;
                 }
                 
-                // Route to TLS actor
-                if (tlsActor == null) {
-                    initializeTlsActor();
-                }
-                if (tlsActor != null) {
-                    tlsActor.tell(new IncomingXmlMessage(connectionId, xmlData, message.timestamp()));
-                }
+                // Process TLS directly with service
+                handleTlsNegotiation(new TlsNegotiationMessage(connectionId, xmlData, message.timestamp()));
                 return;
             }
             
             if (xmlData.contains("xmlns='urn:ietf:params:xml:ns:xmpp-sasl'")) {
-                // Route to SASL actor
-                if (saslActor == null) {
-                    initializeSaslActor();
-                }
-                if (saslActor != null) {
-                    saslActor.tell(new IncomingXmlMessage(connectionId, xmlData, message.timestamp()));
-                }
+                // Process SASL directly with service
+                // Extract mechanism and data from XML for service call
+                String mechanism = extractSaslMechanism(xmlData);
+                String data = extractSaslData(xmlData);
+                handleSaslAuth(new SaslAuthMessage(connectionId, mechanism, data, message.timestamp()));
                 return;
             }
             
@@ -196,9 +199,15 @@ public class ConnectionActor {
             if (authenticated && xmlData.contains("<iq") && 
                 (xmlData.contains("xmlns='urn:ietf:params:xml:ns:xmpp-bind'") || 
                  xmlData.contains("xmlns='urn:ietf:params:xml:ns:xmpp-session'"))) {
-                logger.debug("Routing resource binding/session IQ to resource binding actor");
-                // Route to resource binding actor (to be implemented)
+                logger.debug("Processing resource binding/session IQ with service");
                 handleResourceBinding(ResourceBindingMessage.of(connectionId, xmlData));
+                return;
+            }
+            
+            // Handle general IQ stanzas (ping, version, disco, etc.)
+            if (authenticated && xmlData.contains("<iq")) {
+                logger.debug("Processing general IQ stanza with IQ processing service");
+                handleIqProcessing(xmlData);
                 return;
             }
             
@@ -292,63 +301,151 @@ public class ConnectionActor {
     
     private void handleTlsNegotiation(TlsNegotiationMessage message) {
         logger.debug("Handling TLS negotiation for connection {}", connectionId);
-        // TLS negotiation is delegated to TlsNegotiationActor
-        // Results come back through TLS_NEGOTIATION_SUCCESS/FAILURE messages
+        
+        // Use TLS service directly instead of delegating to actor  
+        tlsNegotiationService.processStartTls(connectionId, message.command())
+            .subscribe(
+                result -> {
+                    // Send TLS response back to client
+                    if (result.responseXml() != null && !result.responseXml().isEmpty()) {
+                        outboundSender.accept(OutgoingStanzaMessage.of(connectionId, result.responseXml()));
+                    }
+                    
+                    // Update TLS state if successful
+                    if (result.success()) {
+                        tlsEstablished = true;
+                        state.set(ConnectionState.TLS_ESTABLISHED);
+                        logger.info("TLS established for connection {}", connectionId);
+                        
+                        // Trigger stream restart after TLS
+                        sendStreamFeaturesAfterTls();
+                    } else {
+                        logger.warn("TLS negotiation failed for connection {}: {}", connectionId, result.errorReason());
+                        state.set(ConnectionState.ERROR);
+                    }
+                },
+                error -> {
+                    logger.error("Error during TLS negotiation for connection {}: {}", connectionId, error.getMessage());
+                    state.set(ConnectionState.ERROR);
+                }
+            );
     }
     
     private void handleSaslAuth(SaslAuthMessage message) {
         logger.debug("Handling SASL auth for connection {}", connectionId);
-        // SASL authentication is delegated to SaslAuthenticationActor
-        // Results come back through SASL_AUTH_SUCCESS/FAILURE messages
+        
+        // Use SASL service directly instead of delegating to actor
+        // Build XML from mechanism and data for service call
+        String authXml = buildSaslAuthXml(message.mechanism(), message.data());
+        saslAuthenticationService.processAuth(connectionId, authXml)
+            .subscribe(
+                result -> {
+                    // Send SASL response back to client
+                    if (result.responseXml() != null && !result.responseXml().isEmpty()) {
+                        outboundSender.accept(OutgoingStanzaMessage.of(connectionId, result.responseXml()));
+                    }
+                    
+                    // Update authentication state if successful
+                    if (result.success()) {
+                        authenticated = true;
+                        authenticatedJid = result.authenticatedJid();
+                        state.set(ConnectionState.AUTHENTICATED);
+                        logger.info("SASL authentication successful for connection {}, JID: {}", connectionId, authenticatedJid);
+                        
+                        // Trigger stream restart after SASL
+                        awaitingPostSaslStream = true;
+                        sendStreamFeaturesAfterSasl();
+                    } else {
+                        logger.warn("SASL authentication failed for connection {}: {} - {}", connectionId, result.errorCondition(), result.errorText());
+                        state.set(ConnectionState.ERROR);
+                    }
+                },
+                error -> {
+                    logger.error("Error during SASL authentication for connection {}: {}", connectionId, error.getMessage());
+                    state.set(ConnectionState.ERROR);
+                }
+            );
     }
     
     private void handleResourceBinding(ResourceBindingMessage message) {
         logger.debug("Handling resource binding for connection {}", connectionId);
         
-        // Simple resource binding implementation
-        String xmlData = message.xmlData();
+        // Use ResourceBindingService directly
+        resourceBindingService.processResourceBinding(connectionId, authenticatedJid, message.xmlData())
+            .subscribe(
+                result -> {
+                    // Send response back to client
+                    if (result.responseXml() != null && !result.responseXml().isEmpty()) {
+                        outboundSender.accept(OutgoingStanzaMessage.of(connectionId, result.responseXml()));
+                    }
+                    
+                    // Update resource binding state if successful
+                    if (result.success()) {
+                        clientJid = result.fullJid();
+                        state.set(ConnectionState.RESOURCE_BOUND);
+                        logger.info("Resource binding successful for connection {}, full JID: {}", connectionId, clientJid);
+                    } else {
+                        logger.warn("Resource binding failed for connection {}: {} - {} - {}", 
+                                  connectionId, result.errorType(), result.errorCondition(), result.errorText());
+                    }
+                },
+                error -> {
+                    logger.error("Error during resource binding for connection {}: {}", connectionId, error.getMessage());
+                }
+            );
+    }
+    
+    private void handleIqProcessing(String xmlData) {
+        logger.debug("Handling general IQ processing for connection {}", connectionId);
         
-        if (xmlData.contains("xmlns='urn:ietf:params:xml:ns:xmpp-bind'")) {
-            // Extract IQ id for response
-            String iqId = extractIqId(xmlData);
-            
-            // Generate a simple resource
-            String resource = "resource" + System.currentTimeMillis() % 10000;
-            String fullJid = authenticatedJid + "/" + resource;
-            
-            // Send bind result
-            String bindResult = String.format("""
-                <iq type='result' id='%s'>
-                    <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>
-                        <jid>%s</jid>
-                    </bind>
-                </iq>""", iqId, fullJid);
-                
-            logger.info("Resource binding successful for connection {}: {}", connectionId, fullJid);
-            outboundSender.accept(OutgoingStanzaMessage.of(connectionId, bindResult));
-            
-            // Update client JID with resource
-            clientJid = fullJid;
-            state.set(ConnectionState.RESOURCE_BOUND);
-            
-        } else if (xmlData.contains("xmlns='urn:ietf:params:xml:ns:xmpp-session'")) {
-            // Handle session establishment
-            String iqId = extractIqId(xmlData);
-            String sessionResult = String.format("<iq type='result' id='%s'/>", iqId);
-            
-            logger.info("Session established for connection {}", connectionId);
-            outboundSender.accept(OutgoingStanzaMessage.of(connectionId, sessionResult));
-            state.set(ConnectionState.SESSION_ESTABLISHED);
+        // Use IqProcessingService directly
+        iqProcessingService.processIq(connectionId, clientJid, xmlData)
+            .subscribe(
+                result -> {
+                    // Send IQ response back to client
+                    if (result.responseXml() != null && !result.responseXml().isEmpty()) {
+                        outboundSender.accept(OutgoingStanzaMessage.of(connectionId, result.responseXml()));
+                        logger.debug("Sent IQ response for connection {}: {}", connectionId, result.iqType());
+                    }
+                },
+                error -> {
+                    logger.error("Error during IQ processing for connection {}: {}", connectionId, error.getMessage());
+                }
+            );
+    }
+    
+    private String extractSaslMechanism(String xmlData) {
+        // Simple extraction of SASL mechanism from auth element
+        if (xmlData.contains("mechanism=")) {
+            int start = xmlData.indexOf("mechanism=\"") + 11;
+            int end = xmlData.indexOf("\"", start);
+            if (end > start) {
+                return xmlData.substring(start, end);
+            }
+        }
+        return "PLAIN"; // Default mechanism
+    }
+    
+    private String extractSaslData(String xmlData) {
+        // Simple extraction of SASL data from auth element content
+        int start = xmlData.indexOf(">") + 1;
+        int end = xmlData.lastIndexOf("<");
+        if (end > start) {
+            return xmlData.substring(start, end).trim();
+        }
+        return ""; // Empty data
+    }
+    
+    private String buildSaslAuthXml(String mechanism, String data) {
+        // Build SASL auth XML from mechanism and data
+        if (data != null && !data.isEmpty()) {
+            return String.format("<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='%s'>%s</auth>", 
+                               mechanism, data);
+        } else {
+            return String.format("<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='%s'/>", mechanism);
         }
     }
-    
-    private String extractIqId(String xmlData) {
-        // Simple regex to extract id attribute
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("id='([^']*)'");
-        java.util.regex.Matcher matcher = pattern.matcher(xmlData);
-        return matcher.find() ? matcher.group(1) : "unknown";
-    }
-    
+
     private void handleConnectionClosed(ConnectionClosedMessage message) {
         logger.info("Connection {} closed: {}", connectionId, message.reason());
         state.set(ConnectionState.CLOSED);
@@ -366,68 +463,22 @@ public class ConnectionActor {
     // Phase 2: TLS and SASL integration methods
     
     /**
-     * Set the NettyOutbound for this connection (used by TLS and SASL actors).
+     * Set the NettyOutbound for this connection (used for TLS upgrade).
      */
     public void setNettyOutbound(NettyOutbound outbound) {
         this.nettyOutbound = outbound;
     }
     
-    /**
-     * Initialize TLS actor for this connection.
-     */
-    private void initializeTlsActor() {
-        if (tlsActor == null && nettyOutbound != null) {
-            tlsActor = new TlsNegotiationActor(connectionId, actorSystem);
-            tlsActor.start(nettyOutbound);
-            logger.debug("TLS actor initialized for connection {}", connectionId);
-        }
-    }
+    // Helper methods for stream features after TLS and SASL
     
-    /**
-     * Initialize SASL actor for this connection.
-     */
-    private void initializeSaslActor() {
-        if (saslActor == null && nettyOutbound != null) {
-            saslActor = new SaslAuthenticationActor(connectionId, actorSystem);
-            saslActor.start(nettyOutbound);
-            logger.debug("SASL actor initialized for connection {}", connectionId);
-        }
-    }
-    
-    private void handleTlsSuccess(TlsNegotiationSuccessMessage message) {
-        logger.info("TLS negotiation successful for connection {}", connectionId);
-        tlsEstablished = true;
-        state.set(ConnectionState.TLS_ESTABLISHED);
-        
-        // Send new stream features after TLS
+    private void sendStreamFeaturesAfterTls() {
         String features = featuresManager.generatePostTlsFeatures();
-        sendFeatures(features);
+        outboundSender.accept(OutgoingStanzaMessage.of(connectionId, features));
     }
     
-    private void handleTlsFailure(TlsNegotiationFailureMessage message) {
-        logger.error("TLS negotiation failed for connection {}: {}", connectionId, message.errorReason());
-        sendStreamError("policy-violation", "TLS required");
-        state.set(ConnectionState.CLOSING);
-    }
-    
-    private void handleSaslSuccess(SaslAuthSuccessMessage message) {
-        logger.info("SASL authentication successful for connection {}: {}", connectionId, message.authenticatedJid());
-        authenticated = true;
-        authenticatedJid = message.authenticatedJid();
-        clientJid = message.authenticatedJid();
-        awaitingPostSaslStream = true; // Flag that we're expecting a stream restart
-        state.set(ConnectionState.AUTHENTICATED);
-        
-        // Send new stream features after SASL
+    private void sendStreamFeaturesAfterSasl() {
         String features = featuresManager.generatePostSaslFeatures();
-        sendFeatures(features);
-    }
-    
-    private void handleSaslFailure(SaslAuthFailureMessage message) {
-        logger.warn("SASL authentication failed for connection {}: {} - {}", 
-                   connectionId, message.errorCondition(), message.errorText());
-        sendStreamError("not-authorized", "SASL authentication failed");
-        state.set(ConnectionState.CLOSING);
+        outboundSender.accept(OutgoingStanzaMessage.of(connectionId, features));
     }
     
     private void sendFeatures(String features) {
